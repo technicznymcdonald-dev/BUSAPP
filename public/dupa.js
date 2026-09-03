@@ -12,98 +12,7 @@ const ctx = canvas.getContext('2d');
 
 let currentLines = [];
 let currentText = 'NIEAKTYWNY';
-let activeDisplayData = null;
-
-// Zmienne do obsługi dźwięku
-let currentAudio = null;
-let soundIndex = 0;
-let lastPlayedKey = null;
-
-/* ===================== SYSTEM ODTWARZANIA DŹWIĘKÓW ===================== */
-
-const LINE_SOUND_MAP = {
-  "92_PODBÓRZ": [
-    "sounds/poczatek_92_P.mp3",
-    "sounds/92_Kollataja.mp3",
-    "sounds/92_Niemcewicza.mp3",
-    "sounds/92_dworzec_niebuszewo.mp3",
-    "sounds/92_Krasinskiego.mp3",
-    "sounds/92_chopina.mp3",
-    "sounds/92_wiosny.mp3",
-    "sounds/92_Podlesna.mp3",
-    "sounds/92_ogrody.mp3",
-    "sounds/92_junacka.mp3",
-    "sounds/92_chozowksa.mp3",
-    "sounds/92_osow.mp3",
-    "sounds/92_andersebna.mp3",
-    "sounds/92_Sudecka.mp3",
-    "sounds/92_Wymarzona.mp3",
-    "sounds/92_Podborz_koncowy.mp3",
-    "sounds/92_Podborz.mp3"
-  ],
-  "DEFAULT": [
-    "sounds/gong.mp3"
-  ]
-};
-
-if (soundBtn) {
-  soundBtn.addEventListener('click', () => {
-    try {
-      const key = activeDisplayData 
-        ? `${activeDisplayData.number}_${activeDisplayData.destination}`.toUpperCase()
-        : "DEFAULT";
-
-      let playlist = LINE_SOUND_MAP[key];
-
-      // Jeśli nie znalazło po "92_PODBÓRZ", próbuje szukać bez polskich znaków
-      if (!playlist && activeDisplayData) {
-        const altKey = `${activeDisplayData.number}_${activeDisplayData.destination}`
-          .toUpperCase()
-          .replace('Ó', 'O')
-          .replace('Ż', 'Z')
-          .replace('Ł', 'L')
-          .replace('Ś', 'S')
-          .replace('Ć', 'C')
-          .replace('Ę', 'E')
-          .replace('Ą', 'A')
-          .replace('Ź', 'Z')
-          .replace('Ń', 'N');
-        playlist = LINE_SOUND_MAP[altKey];
-      }
-
-      if (!playlist) {
-        playlist = LINE_SOUND_MAP["DEFAULT"];
-      }
-
-      if (lastPlayedKey !== key) {
-        soundIndex = 0;
-        lastPlayedKey = key;
-      }
-
-      if (currentAudio) {
-        currentAudio.pause();
-        currentAudio.currentTime = 0;
-      }
-
-      const soundToPlay = playlist[soundIndex];
-
-      if (soundToPlay) {
-        currentAudio = new Audio(soundToPlay);
-        currentAudio.play().catch(err => {
-          console.warn("Nie można odtworzyć pliku (sprawdź czy plik istnieje w public/sounds/):", soundToPlay);
-        });
-
-        soundIndex++;
-
-        if (soundIndex >= playlist.length) {
-          soundIndex = 0;
-        }
-      }
-    } catch (e) {
-      console.error("Błąd odtwarzacza:", e);
-    }
-  });
-}
+let activeDisplayData = null; // Przechowuje aktualną linię i kierunek
 
 /* ===================== SILNIK MATRYCY PUNKTOWEJ ===================== */
 
@@ -122,7 +31,6 @@ let lastFrameTime = null;
 let needsScroll = false;
 
 function resizeCanvas() {
-  if (!canvas) return;
   const rect = canvas.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
   canvas.width = Math.max(1, Math.round(rect.width * dpr));
@@ -216,16 +124,61 @@ function setDisplayText(text) {
 }
 
 window.addEventListener('resize', resizeCanvas);
-if (canvas) {
-  new ResizeObserver(resizeCanvas).observe(canvas);
-}
+new ResizeObserver(resizeCanvas).observe(canvas);
 requestAnimationFrame(drawFrame);
 resizeCanvas();
+
+/* ===================== SYSTEM ODTWARZANIA DŹWIĘKÓW ===================== */
+
+// Mapowanie sekwencji dźwięków w folderze /sounds/
+// Umieść odpowiednie pliki MP3 w folderze: public/sounds/
+const LINE_SOUND_MAP = {
+  "92_PODBÓRZ": ["sounds/gong.mp3", "sounds/linia_92.mp3", "sounds/kierunek_podborz.mp3"],
+  "DEFAULT": ["sounds/gong.mp3"]
+};
+
+let currentAudio = null;
+
+function playSoundSequence(fileList) {
+  if (!fileList || fileList.length === 0) return;
+  
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio = null;
+  }
+
+  let index = 0;
+
+  function playNext() {
+    if (index >= fileList.length) return;
+    
+    currentAudio = new Audio(fileList[index]);
+    currentAudio.play().catch(err => {
+      console.warn("Błąd podczas odtwarzania pliku:", fileList[index], err);
+    });
+
+    index++;
+    currentAudio.onended = playNext;
+  }
+
+  playNext();
+}
+
+soundBtn.addEventListener('click', () => {
+  if (!activeDisplayData) {
+    playSoundSequence(LINE_SOUND_MAP["DEFAULT"]);
+    return;
+  }
+
+  const key = `${activeDisplayData.number}_${activeDisplayData.destination}`.toUpperCase();
+  const sequence = LINE_SOUND_MAP[key] || LINE_SOUND_MAP["DEFAULT"];
+  
+  playSoundSequence(sequence);
+});
 
 /* ===================== PANEL STEROWANIA / SYNC ===================== */
 
 function renderLines() {
-  if (!linesListEl) return;
   linesListEl.innerHTML = '';
   currentLines.forEach((line, index) => {
     const btn = document.createElement('button');
@@ -279,8 +232,6 @@ function exitFullscreen() {
 
 socket.on('display-updated', (display) => {
   activeDisplayData = display;
-  soundIndex = 0;
-
   if (!display || !display.number) {
     setDisplayText('NIEAKTYWNY');
     exitFullscreen();
@@ -290,27 +241,21 @@ socket.on('display-updated', (display) => {
   }
 });
 
-if (addForm) {
-  addForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const number = newNumberInput.value.trim();
-    const destination = newDestinationInput.value.trim();
-    if (!number || !destination) return;
-    currentLines.push({ number, destination });
-    saveLines();
-    newNumberInput.value = '';
-    newDestinationInput.value = '';
-  });
-}
+addForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const number = newNumberInput.value.trim();
+  const destination = newDestinationInput.value.trim();
+  if (!number || !destination) return;
+  currentLines.push({ number, destination });
+  saveLines();
+  newNumberInput.value = '';
+  newDestinationInput.value = '';
+});
 
-if (clearBtn) {
-  clearBtn.addEventListener('click', () => {
-    socket.emit('clear-display');
-  });
-}
+clearBtn.addEventListener('click', () => {
+  socket.emit('clear-display');
+});
 
-if (backBtn) {
-  backBtn.addEventListener('click', () => {
-    exitFullscreen();
-  });
-}
+backBtn.addEventListener('click', () => {
+  exitFullscreen();
+});

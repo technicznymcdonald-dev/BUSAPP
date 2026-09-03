@@ -38,11 +38,10 @@ body {
   display: block;
 }
 
-#back-btn {
+#back-btn, #sound-btn {
   display: none;
   position: fixed;
   bottom: 18px;
-  right: 18px;
   width: 44px;
   height: 44px;
   border-radius: 50%;
@@ -54,6 +53,14 @@ body {
   z-index: 10;
   align-items: center;
   justify-content: center;
+}
+
+#back-btn {
+  right: 18px;
+}
+
+#sound-btn {
+  right: 70px;
 }
 
 body.fullscreen-mode #panel { display: none; }
@@ -71,12 +78,20 @@ body.fullscreen-mode #display {
   border-radius: 0;
   border: none;
   padding: calc(env(safe-area-inset-top) + 2vh) calc(env(safe-area-inset-right) + 2vw)
-           calc(env(safe-area-inset-bottom) + 2vh) calc(env(safe-area-inset-left) + 2vw);
+         calc(env(safe-area-inset-bottom) + 2vh) calc(env(safe-area-inset-left) + 2vw);
 }
-body.fullscreen-mode #back-btn {
+body.fullscreen-mode #back-btn,
+body.fullscreen-mode #sound-btn {
   display: flex;
   bottom: calc(env(safe-area-inset-bottom) + 18px);
+}
+
+body.fullscreen-mode #back-btn {
   right: calc(env(safe-area-inset-right) + 18px);
+}
+
+body.fullscreen-mode #sound-btn {
+  right: calc(env(safe-area-inset-right) + 70px);
 }
 
 /* ---------- PANEL STEROWANIA ---------- */
