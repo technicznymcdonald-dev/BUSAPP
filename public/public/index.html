@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="theme-color" content="#000000" />
+<title>Tablica kierunkowa</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div id="display-wrap">
+  <div id="display">
+    <canvas id="display-canvas"></canvas>
+  </div>
+  <button id="sound-btn" title="Odtwórz dźwięk">🔊</button>
+  <button id="back-btn" title="Wróć do listy linii">↩</button>
+</div>
+
+<div id="panel">
+  <div id="panel-header">
+    <h1>Linie</h1>
+    <button id="clear-btn">Wygaś</button>
+  </div>
+
+  <div id="lines-list"></div>
+
+  <form id="add-line-form">
+    <input type="text" id="new-number" placeholder="Nr linii, np. 92" required />
+    <input type="text" id="new-destination" placeholder="Kierunek, np. Podbórz" required />
+    <button type="submit">Dodaj</button>
+  </form>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
