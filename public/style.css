@@ -1,0 +1,176 @@
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  background: #111;
+  color: #eee;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* ---------- WYŚWIETLACZ ---------- */
+#display-wrap {
+  position: relative;
+  background: #000;
+  padding: 20px 12px;
+  flex-shrink: 0;
+}
+
+#display {
+  background: #000;
+  border: 2px solid #222;
+  border-radius: 6px;
+  padding: 10px;
+  overflow: hidden;
+  height: 90px;
+}
+
+#display-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+#back-btn {
+  display: none;
+  position: fixed;
+  bottom: 18px;
+  right: 18px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(34, 34, 34, 0.85);
+  color: #ff8c00;
+  border: 1px solid #555;
+  font-size: 20px;
+  cursor: pointer;
+  z-index: 10;
+  align-items: center;
+  justify-content: center;
+}
+
+body.fullscreen-mode #panel { display: none; }
+body.fullscreen-mode #display-wrap {
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  padding: 0;
+  height: 100vh;
+  height: 100dvh;
+}
+body.fullscreen-mode #display {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  border: none;
+  padding: calc(env(safe-area-inset-top) + 2vh) calc(env(safe-area-inset-right) + 2vw)
+           calc(env(safe-area-inset-bottom) + 2vh) calc(env(safe-area-inset-left) + 2vw);
+}
+body.fullscreen-mode #back-btn {
+  display: flex;
+  bottom: calc(env(safe-area-inset-bottom) + 18px);
+  right: calc(env(safe-area-inset-right) + 18px);
+}
+
+/* ---------- PANEL STEROWANIA ---------- */
+#panel {
+  padding: 16px;
+  flex: 1;
+}
+
+#panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+#panel-header h1 {
+  font-size: 20px;
+  margin: 0;
+}
+
+#clear-btn {
+  background: #333;
+  color: #eee;
+  border: 1px solid #555;
+  border-radius: 6px;
+  padding: 8px 14px;
+}
+
+#lines-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.line-btn {
+  position: relative;
+  background: #1c1c1c;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 14px 10px;
+  color: #eee;
+  text-align: left;
+  cursor: pointer;
+}
+
+.line-btn .num {
+  display: block;
+  font-size: 20px;
+  font-weight: 700;
+  color: #ff8c00;
+}
+
+.line-btn .dest {
+  display: block;
+  font-size: 14px;
+  color: #ccc;
+  margin-top: 4px;
+}
+
+.line-btn .del {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+#add-line-form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  border-top: 1px solid #333;
+  padding-top: 14px;
+}
+
+#add-line-form input {
+  flex: 1;
+  min-width: 120px;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #444;
+  background: #1c1c1c;
+  color: #eee;
+}
+
+#add-line-form button {
+  background: #ff8c00;
+  color: #000;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 16px;
+  font-weight: 700;
+}
