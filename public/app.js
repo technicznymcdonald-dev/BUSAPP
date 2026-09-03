@@ -36,16 +36,16 @@ const LINE_SOUND_MAP = {
     "sounds/92_chozowksa.mp3",
     "sounds/92_osow.mp3",
     "sounds/92_andersebna.mp3",
-    "sounds/92_Sudecka.mp3",
     "sounds/92_Wymarzona.mp3",
+    "sounds/92_Sudecka.mp3",
     "sounds/92_Podborz_koncowy.mp3",
     "sounds/92_Podborz.mp3"
   ],
   "92_KOŁŁATAJA": [
     "sounds/poczatek_92_K.mp3",
     "sounds/92_Podborz.mp3",
-    "sounds/92_Wymarzona.mp3",
     "sounds/92_Sudecka.mp3",
+    "sounds/92_Wymarzona.mp3",
     "sounds/92_andersebna.mp3",
     "sounds/92_osow.mp3",
     "sounds/92_chozowksa.mp3",
