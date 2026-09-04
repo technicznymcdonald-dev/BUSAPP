@@ -36,30 +36,13 @@ const LINE_SOUND_MAP = {
     "sounds/92_chozowksa.mp3",
     "sounds/92_osow.mp3",
     "sounds/92_andersebna.mp3",
-    "sounds/92_Wymarzona.mp3",
     "sounds/92_Sudecka.mp3",
+    "sounds/92_Wymarzona.mp3",
     "sounds/92_Podborz_koncowy.mp3",
     "sounds/92_Podborz.mp3"
   ],
-  "92_KOŁŁATAJA": [
-    "sounds/poczatek_92_K.mp3",
-    "sounds/92_Podborz.mp3",
-    "sounds/92_Sudecka.mp3",
-    "sounds/92_Wymarzona.mp3",
-    "sounds/92_andersebna.mp3",
-    "sounds/92_osow.mp3",
-    "sounds/92_chozowksa.mp3",
-    "sounds/92_junacka.mp3",
-    "sounds/92_ogrody.mp3",
-    "sounds/92_Podlesna.mp3",
-    "sounds/92_wiosny.mp3",
-    "sounds/92_chopina.mp3",
-    "sounds/92_Krasinskiego.mp3",
-    "sounds/92_dworzec_niebuszewo.mp3",
-    "sounds/92_Niemcewicza.mp3",
-    "sounds/poczatek_92_K.mp3",
-    "sounds/92_Kollataja.mp3",
-    
+  "DEFAULT": [
+    "sounds/braklini.mp3"
   ]
 };
 
@@ -72,7 +55,7 @@ if (soundBtn) {
 
       let playlist = LINE_SOUND_MAP[key];
 
-      // Jeśli nie znalazło po "92_PODBÓRZ", próbuje szukać bez polskich znaków
+      // Jeśli nie znalazło po "92_PODBÓRZ", próbuje bez polskich znaków
       if (!playlist && activeDisplayData) {
         const altKey = `${activeDisplayData.number}_${activeDisplayData.destination}`
           .toUpperCase()
@@ -107,7 +90,7 @@ if (soundBtn) {
       if (soundToPlay) {
         currentAudio = new Audio(soundToPlay);
         currentAudio.play().catch(err => {
-          console.warn("Nie można odtworzyć pliku (sprawdź czy plik istnieje w public/sounds/):", soundToPlay);
+          console.warn("Nie można odtworzyć pliku:", soundToPlay);
         });
 
         soundIndex++;
@@ -252,10 +235,16 @@ function renderLines() {
       <span class="dest">${escapeHtml(line.destination)}</span>
       <button class="del" title="Usuń linię">✕</button>
     `;
+    
+    // Kliknięcie ustawia ekran LOKALNIE na Twoim urządzeniu
     btn.addEventListener('click', (e) => {
       if (e.target.classList.contains('del')) return;
-      socket.emit('select-line', line);
+      activeDisplayData = line;
+      soundIndex = 0;
+      setDisplayText(`${line.number}  ${line.destination}`.toUpperCase());
+      enterFullscreen();
     });
+
     btn.querySelector('.del').addEventListener('click', (e) => {
       e.stopPropagation();
       currentLines.splice(index, 1);
@@ -279,6 +268,7 @@ function saveLines() {
   });
 }
 
+// Synchronizujemy samą listę dodanych linii ze wszystkimi użytkownikami
 socket.on('lines-updated', (lines) => {
   currentLines = lines;
   renderLines();
@@ -291,19 +281,15 @@ function enterFullscreen() {
 
 function exitFullscreen() {
   document.body.classList.remove('fullscreen-mode');
+  activeDisplayData = null;
+  setDisplayText('NIEAKTYWNY');
   resizeCanvas();
 }
 
+// Zdarzenie wygaszenia tablicy
 socket.on('display-updated', (display) => {
-  activeDisplayData = display;
-  soundIndex = 0;
-
   if (!display || !display.number) {
-    setDisplayText('NIEAKTYWNY');
     exitFullscreen();
-  } else {
-    setDisplayText(`${display.number}  ${display.destination}`.toUpperCase());
-    enterFullscreen();
   }
 });
 

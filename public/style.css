@@ -112,6 +112,24 @@ body.fullscreen-mode #sound-btn {
   margin: 0;
 }
 
+#panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#youtube-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #ff0000;
+  color: #fff;
+  text-decoration: none;
+}
+
 #clear-btn {
   background: #333;
   color: #eee;
