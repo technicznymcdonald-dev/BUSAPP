@@ -60,8 +60,7 @@ const LINE_SOUND_MAP = {
     "sounds/poczatek_92_K.mp3",
     "sounds/92_Kollataja.mp3",
     
-  ]   "deafult": [
-    "sounds/braklini.mp3",
+  ]
 };
 
 if (soundBtn) {
