@@ -41,6 +41,26 @@ const LINE_SOUND_MAP = {
     "sounds/92_Podborz_koncowy.mp3",
     "sounds/92_Podborz.mp3"
   ],
+  "92_KOŁŁATAJA": [
+   "sounds/poczatek_92_K.mp3",
+    "sounds/92_Podborz.mp3",
+    "sounds/92_Wymarzona.mp3",
+    "sounds/92_Sudecka.mp3",
+    "sounds/92_andersebna.mp3",
+    "sounds/92_osow.mp3",
+    "sounds/92_chozowksa.mp3",
+    "sounds/92_junacka.mp3",
+    "sounds/92_ogrody.mp3",
+    "sounds/92_Podlesna.mp3",
+    "sounds/92_wiosny.mp3",
+    "sounds/92_chopina.mp3",
+    "sounds/92_Krasinskiego.mp3",   
+    "sounds/92_dworzec_niebuszewo.mp3",    
+    "sounds/92_Niemcewicza.mp3",
+    "sounds/92_Kolataja_K.mp3",
+    "sounds/92_Kolataja.mp3",
+    
+  ],
   "DEFAULT": [
     "sounds/braklini.mp3"
   ]
