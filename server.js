@@ -96,6 +96,14 @@ function listSoundFiles() {
 // Aktualnie wyświetlana linia (dzielona przez wszystkie urządzenia)
 let currentDisplay = { number: '', destination: '' };
 
+// Rejestr podłączonych urządzeń: socket.id -> nazwa nadana przez użytkownika
+const deviceNames = new Map();
+
+function broadcastDevices() {
+  const list = [...deviceNames.entries()].map(([id, name]) => ({ id, name }));
+  io.emit('devices-updated', list);
+}
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -152,6 +160,28 @@ io.on('connection', (socket) => {
   socket.emit('lines-updated', loadLines());
   socket.emit('display-updated', currentDisplay);
   socket.emit('soundmap-updated', loadSoundMap());
+  socket.emit('devices-updated', [...deviceNames.entries()].map(([id, name]) => ({ id, name })));
+
+  socket.on('register-device', (name) => {
+    const safeName = (name || 'Urządzenie').toString().slice(0, 40);
+    deviceNames.set(socket.id, safeName);
+    broadcastDevices();
+  });
+
+  socket.on('send-line-to-device', (payload) => {
+    const { targetId, line } = payload || {};
+    if (!line || typeof line.number === 'undefined') return;
+
+    if (targetId === 'all') {
+      io.emit('remote-select-line', line);
+      return;
+    }
+
+    const targetSocket = io.sockets.sockets.get(targetId);
+    if (targetSocket) {
+      targetSocket.emit('remote-select-line', line);
+    }
+  });
 
   socket.on('select-line', (line) => {
     if (!line || typeof line.number === 'undefined') return;
@@ -162,6 +192,11 @@ io.on('connection', (socket) => {
   socket.on('clear-display', () => {
     currentDisplay = { number: '', destination: '' };
     io.emit('display-updated', currentDisplay);
+  });
+
+  socket.on('disconnect', () => {
+    deviceNames.delete(socket.id);
+    broadcastDevices();
   });
 });
 
