@@ -7,6 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="theme-color" content="#000000" />
+<link rel="manifest" href="manifest.json" />
 <title>Tablica kierunkowa</title>
 <link rel="stylesheet" href="style.css" />
 </head>
@@ -16,7 +17,11 @@
   <div id="display">
     <canvas id="display-canvas"></canvas>
   </div>
+  <canvas id="side-canvas" title="Burta boczna"></canvas>
+  <div id="stop-toast"></div>
   <button id="sound-btn" title="Odtwórz dźwięk">🔊</button>
+  <button id="bell-btn" title="Dzwonek / drzwi się zamykają">🔔</button>
+  <button id="auto-btn" title="Automatyczne odtwarzanie trasy">▶️</button>
   <button id="back-btn" title="Wróć do listy linii">↩</button>
 </div>
 
@@ -24,6 +29,15 @@
   <div id="panel-header">
     <h1>Linie</h1>
     <div id="panel-header-actions">
+      <div id="color-picker" title="Kolor wyświetlacza">
+        <button class="color-swatch" data-color="amber" title="Bursztynowy"></button>
+        <button class="color-swatch" data-color="red" title="Czerwony"></button>
+        <button class="color-swatch" data-color="green" title="Zielony"></button>
+      </div>
+      <button id="editor-btn" title="Edytuj dźwięki">🎚️</button>
+      <button id="export-btn" title="Eksportuj konfigurację">⬇️</button>
+      <button id="import-btn" title="Importuj konfigurację">⬆️</button>
+      <input type="file" id="import-file-input" accept="application/json" hidden />
       <a id="youtube-btn" href="https://www.youtube.com/@Wojtixcreations" target="_blank" rel="noopener noreferrer" title="Kanał YouTube - swfx_real_foxx" aria-label="Kanał YouTube">
         <svg viewBox="0 0 24 24" width="20" height="20" xmlns="http://www.w3.org/2000/svg">
           <path fill="currentColor" d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2 31.6 31.6 0 0 0 0 12a31.6 31.6 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1A31.6 31.6 0 0 0 24 12a31.6 31.6 0 0 0-.5-5.8ZM9.6 15.6V8.4L15.8 12l-6.2 3.6Z"/>
@@ -33,6 +47,11 @@
     </div>
   </div>
 
+  <div id="recent-wrap">
+    <h2>Ostatnio wybierane</h2>
+    <div id="recent-list"></div>
+  </div>
+
   <div id="lines-list"></div>
 
   <form id="add-line-form">
@@ -40,6 +59,32 @@
     <input type="text" id="new-destination" placeholder="Kierunek, np. Podbórz" required />
     <button type="submit">Dodaj</button>
   </form>
+</div>
+
+<div id="sound-editor-overlay">
+  <div id="sound-editor">
+    <div id="sound-editor-header">
+      <h2>Edytor dźwięków</h2>
+      <button id="editor-close-btn">✕</button>
+    </div>
+
+    <label id="editor-line-label">
+      Linia:
+      <select id="editor-line-select"></select>
+    </label>
+
+    <ol id="editor-sound-list"></ol>
+
+    <div id="editor-add-row">
+      <select id="editor-sound-select"></select>
+      <button id="editor-add-sound-btn">Dodaj</button>
+    </div>
+
+    <div id="editor-actions">
+      <button id="editor-save-btn">Zapisz</button>
+      <span id="editor-status"></span>
+    </div>
+  </div>
 </div>
 
 <script src="/socket.io/socket.io.js"></script>

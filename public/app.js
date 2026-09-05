@@ -7,8 +7,28 @@ const newDestinationInput = document.getElementById('new-destination');
 const clearBtn = document.getElementById('clear-btn');
 const backBtn = document.getElementById('back-btn');
 const soundBtn = document.getElementById('sound-btn');
+const bellBtn = document.getElementById('bell-btn');
+const autoBtn = document.getElementById('auto-btn');
 const canvas = document.getElementById('display-canvas');
-const ctx = canvas.getContext('2d');
+const sideCanvas = document.getElementById('side-canvas');
+const displayEl = document.getElementById('display');
+const stopToastEl = document.getElementById('stop-toast');
+const recentWrapEl = document.getElementById('recent-wrap');
+const recentListEl = document.getElementById('recent-list');
+
+const editorBtn = document.getElementById('editor-btn');
+const editorOverlay = document.getElementById('sound-editor-overlay');
+const editorCloseBtn = document.getElementById('editor-close-btn');
+const editorLineSelect = document.getElementById('editor-line-select');
+const editorSoundListEl = document.getElementById('editor-sound-list');
+const editorSoundSelect = document.getElementById('editor-sound-select');
+const editorAddSoundBtn = document.getElementById('editor-add-sound-btn');
+const editorSaveBtn = document.getElementById('editor-save-btn');
+const editorStatus = document.getElementById('editor-status');
+
+const exportBtn = document.getElementById('export-btn');
+const importBtn = document.getElementById('import-btn');
+const importFileInput = document.getElementById('import-file-input');
 
 let currentLines = [];
 let currentText = 'NIEAKTYWNY';
@@ -18,10 +38,15 @@ let activeDisplayData = null;
 let currentAudio = null;
 let soundIndex = 0;
 let lastPlayedKey = null;
+let autoPlayEnabled = false;
 
 /* ===================== SYSTEM ODTWARZANIA DŹWIĘKÓW ===================== */
+/* LINE_SOUND_MAP zaczyna z Twoją dotychczasową zawartością jako domyślną -
+   zaraz po starcie strony zostanie nadpisana tym, co trzyma serwer
+   (plik soundmap.json), więc edycje w edytorze będą się synchronizować
+   między urządzeniami. */
 
-const LINE_SOUND_MAP = {
+let LINE_SOUND_MAP = {
   "92_PODBÓRZ": [
     "sounds/poczatek_92_P.mp3",
     "sounds/92_Kollataja.mp3",
@@ -42,7 +67,7 @@ const LINE_SOUND_MAP = {
     "sounds/92_Podborz.mp3"
   ],
   "92_KOŁŁATAJA": [
-   "sounds/poczatek_92_K.mp3",
+    "sounds/poczatek_92_K.mp3",
     "sounds/92_Podborz.mp3",
     "sounds/92_Wymarzona.mp3",
     "sounds/92_Sudecka.mp3",
@@ -54,222 +79,459 @@ const LINE_SOUND_MAP = {
     "sounds/92_Podlesna.mp3",
     "sounds/92_wiosny.mp3",
     "sounds/92_chopina.mp3",
-    "sounds/92_Krasinskiego.mp3",   
-    "sounds/92_dworzec_niebuszewo.mp3",    
+    "sounds/92_Krasinskiego.mp3",
+    "sounds/92_dworzec_niebuszewo.mp3",
     "sounds/92_Niemcewicza.mp3",
     "sounds/92_Kolataja_K.mp3",
-    "sounds/92_Kolataja.mp3",
-    
+    "sounds/92_Kollataja.mp3"
   ],
   "DEFAULT": [
     "sounds/braklini.mp3"
   ]
 };
 
-if (soundBtn) {
-  soundBtn.addEventListener('click', () => {
-    try {
-      const key = activeDisplayData 
-        ? `${activeDisplayData.number}_${activeDisplayData.destination}`.toUpperCase()
-        : "DEFAULT";
+// Pobierz aktualną mapę z serwera (nadpisze powyższy fallback, jeśli serwer coś ma)
+fetch('/api/soundmap')
+  .then((r) => r.json())
+  .then((map) => {
+    if (map && typeof map === 'object' && Object.keys(map).length) {
+      LINE_SOUND_MAP = map;
+    }
+  })
+  .catch(() => {});
 
-      let playlist = LINE_SOUND_MAP[key];
+// Synchronizacja mapy dźwięków między urządzeniami (np. po edycji w edytorze)
+socket.on('soundmap-updated', (map) => {
+  LINE_SOUND_MAP = map;
+  if (editorOverlay && editorOverlay.classList.contains('visible')) {
+    renderEditorSoundList();
+  }
+});
 
-      // Jeśli nie znalazło po "92_PODBÓRZ", próbuje bez polskich znaków
-      if (!playlist && activeDisplayData) {
-        const altKey = `${activeDisplayData.number}_${activeDisplayData.destination}`
-          .toUpperCase()
-          .replace('Ó', 'O')
-          .replace('Ż', 'Z')
-          .replace('Ł', 'L')
-          .replace('Ś', 'S')
-          .replace('Ć', 'C')
-          .replace('Ę', 'E')
-          .replace('Ą', 'A')
-          .replace('Ź', 'Z')
-          .replace('Ń', 'N');
-        playlist = LINE_SOUND_MAP[altKey];
+function currentKey() {
+  return activeDisplayData
+    ? `${activeDisplayData.number}_${activeDisplayData.destination}`.toUpperCase()
+    : 'DEFAULT';
+}
+
+function getPlaylistForActive() {
+  const key = currentKey();
+  let playlist = LINE_SOUND_MAP[key];
+
+  if (!playlist && activeDisplayData) {
+    const altKey = key
+      .replace(/Ó/g, 'O')
+      .replace(/Ż/g, 'Z')
+      .replace(/Ł/g, 'L')
+      .replace(/Ś/g, 'S')
+      .replace(/Ć/g, 'C')
+      .replace(/Ę/g, 'E')
+      .replace(/Ą/g, 'A')
+      .replace(/Ź/g, 'Z')
+      .replace(/Ń/g, 'N');
+    playlist = LINE_SOUND_MAP[altKey];
+  }
+
+  if (!playlist) {
+    playlist = LINE_SOUND_MAP['DEFAULT'] || [];
+  }
+
+  return playlist;
+}
+
+function deriveStopLabel(soundPath) {
+  const file = soundPath.split('/').pop().replace(/\.[^.]+$/, '');
+  let label = file
+    .replace(/^poczatek_\d+_[A-Za-zŁŚŻŹĆŃÓĄĘ]?_?/i, '')
+    .replace(/^\d+_/, '')
+    .replace(/_koncowy$/i, '')
+    .replace(/_/g, ' ')
+    .trim();
+  if (!label) label = file.replace(/_/g, ' ');
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function stopAllAudio() {
+  if (currentAudio) {
+    currentAudio.onended = null;
+    currentAudio.pause();
+    currentAudio.currentTime = 0;
+  }
+}
+
+function advanceSound() {
+  try {
+    const key = currentKey();
+    const playlist = getPlaylistForActive();
+
+    if (lastPlayedKey !== key) {
+      soundIndex = 0;
+      lastPlayedKey = key;
+    }
+
+    if (currentAudio) {
+      currentAudio.onended = null;
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+    }
+
+    if (!playlist || !playlist.length) return;
+
+    const soundToPlay = playlist[soundIndex];
+    const isLast = soundIndex === playlist.length - 1;
+
+    if (soundToPlay) {
+      currentAudio = new Audio(soundToPlay);
+      currentAudio.play().catch((err) => {
+        console.warn('Nie można odtworzyć pliku:', soundToPlay, err);
+      });
+
+      showStopToast(deriveStopLabel(soundToPlay));
+
+      if (isLast) {
+        flashFinalStop();
       }
 
-      if (!playlist) {
-        playlist = LINE_SOUND_MAP["DEFAULT"];
+      if (autoPlayEnabled) {
+        currentAudio.onended = () => {
+          setTimeout(() => {
+            if (autoPlayEnabled) advanceSound();
+          }, 1200);
+        };
       }
 
-      if (lastPlayedKey !== key) {
+      soundIndex++;
+      if (soundIndex >= playlist.length) {
         soundIndex = 0;
-        lastPlayedKey = key;
       }
+    }
+  } catch (e) {
+    console.error('Błąd odtwarzacza:', e);
+  }
+}
 
-      if (currentAudio) {
-        currentAudio.pause();
-        currentAudio.currentTime = 0;
-      }
+if (soundBtn) {
+  soundBtn.addEventListener('click', () => advanceSound());
+}
 
-      const soundToPlay = playlist[soundIndex];
-
-      if (soundToPlay) {
-        currentAudio = new Audio(soundToPlay);
-        currentAudio.play().catch(err => {
-          console.warn("Nie można odtworzyć pliku:", soundToPlay);
-        });
-
-        soundIndex++;
-
-        if (soundIndex >= playlist.length) {
-          soundIndex = 0;
-        }
-      }
+if (bellBtn) {
+  bellBtn.addEventListener('click', () => {
+    try {
+      const bell = new Audio('sounds/dzwonek.mp3');
+      bell.addEventListener('error', () => {
+        showStopToast('Brak pliku sounds/dzwonek.mp3');
+      });
+      bell.play().catch(() => {
+        showStopToast('Brak pliku sounds/dzwonek.mp3');
+      });
     } catch (e) {
-      console.error("Błąd odtwarzacza:", e);
+      console.error(e);
     }
   });
 }
 
-/* ===================== SILNIK MATRYCY PUNKTOWEJ ===================== */
-
-const ROWS = 24; 
-const FONT_SCALE = 0.72; 
-const DOT_FILL_RATIO = 0.34; 
-const SCROLL_SPEED = 22; 
-
-const offCanvas = document.createElement('canvas');
-const offCtx = offCanvas.getContext('2d');
-
-let cols = 40; 
-let textCols = 0; 
-let scrollOffset = 0;
-let lastFrameTime = null;
-let needsScroll = false;
-
-function resizeCanvas() {
-  if (!canvas) return;
-  const rect = canvas.getBoundingClientRect();
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width = Math.max(1, Math.round(rect.width * dpr));
-  canvas.height = Math.max(1, Math.round(rect.height * dpr));
-  cols = Math.max(10, Math.round((rect.width / rect.height) * ROWS));
-  rasterizeText(currentText);
+if (autoBtn) {
+  autoBtn.addEventListener('click', () => {
+    autoPlayEnabled = !autoPlayEnabled;
+    autoBtn.classList.toggle('active', autoPlayEnabled);
+    autoBtn.textContent = autoPlayEnabled ? '⏸️' : '▶️';
+    if (autoPlayEnabled) {
+      advanceSound();
+    } else if (currentAudio) {
+      currentAudio.onended = null;
+    }
+  });
 }
 
-function rasterizeText(text) {
-  const fontSize = Math.max(4, Math.round(ROWS * FONT_SCALE));
-  offCtx.font = `bold ${fontSize}px "Courier New", monospace`;
-  const measured = offCtx.measureText(text || '').width;
-  textCols = Math.max(cols, Math.ceil(measured) + 4);
+/* ===================== DYMEK Z NAZWĄ PRZYSTANKU ===================== */
 
-  offCanvas.width = textCols;
-  offCanvas.height = ROWS;
-
-  offCtx.fillStyle = '#000';
-  offCtx.fillRect(0, 0, offCanvas.width, offCanvas.height);
-
-  offCtx.font = `bold ${fontSize}px "Courier New", monospace`;
-  offCtx.fillStyle = '#fff';
-  offCtx.textBaseline = 'middle';
-  offCtx.textAlign = 'left';
-
-  const startX = textCols > cols ? 2 : Math.floor((cols - measured) / 2);
-  offCtx.fillText(text || '', startX, ROWS / 2 + 1);
-
-  needsScroll = textCols > cols;
-  scrollOffset = 0;
-  lastFrameTime = null;
+let stopToastTimeout = null;
+function showStopToast(text) {
+  if (!stopToastEl) return;
+  stopToastEl.textContent = text;
+  stopToastEl.classList.add('visible');
+  clearTimeout(stopToastTimeout);
+  stopToastTimeout = setTimeout(() => {
+    stopToastEl.classList.remove('visible');
+  }, 4000);
 }
 
-function drawFrame(timestamp) {
-  if (lastFrameTime === null) lastFrameTime = timestamp;
-  const dt = (timestamp - lastFrameTime) / 1000;
-  lastFrameTime = timestamp;
+function hideStopToast() {
+  if (!stopToastEl) return;
+  stopToastEl.classList.remove('visible');
+  clearTimeout(stopToastTimeout);
+}
 
-  if (needsScroll) {
-    scrollOffset += SCROLL_SPEED * dt;
-    const wrapAt = textCols + 6;
-    if (scrollOffset >= wrapAt) scrollOffset -= wrapAt;
+function flashFinalStop() {
+  if (!displayEl) return;
+  displayEl.classList.remove('final-stop-flash');
+  void displayEl.offsetWidth; // wymuszenie przeliczenia, żeby animacja odpaliła się od nowa
+  displayEl.classList.add('final-stop-flash');
+  setTimeout(() => displayEl.classList.remove('final-stop-flash'), 2200);
+}
+
+/* ===================== KOLOR WYŚWIETLACZA ===================== */
+
+const DOT_COLORS = { amber: '#ff9100', red: '#ff2b2b', green: '#4dff4d' };
+let dotColorName = localStorage.getItem('busapp_dot_color') || 'amber';
+let dotColorHex = DOT_COLORS[dotColorName] || DOT_COLORS.amber;
+
+function applyColorSwatchUI() {
+  document.querySelectorAll('.color-swatch').forEach((btn) => {
+    btn.classList.toggle('selected', btn.dataset.color === dotColorName);
+  });
+}
+
+document.querySelectorAll('.color-swatch').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    dotColorName = btn.dataset.color;
+    dotColorHex = DOT_COLORS[dotColorName] || DOT_COLORS.amber;
+    localStorage.setItem('busapp_dot_color', dotColorName);
+    applyColorSwatchUI();
+  });
+});
+applyColorSwatchUI();
+
+/* ===================== SILNIK MATRYCY PUNKTOWEJ (reużywalny) ===================== */
+
+function createDotMatrixRenderer(canvasEl, rowsCount, fontScale, dotFillRatio) {
+  if (!canvasEl) return null;
+  const rCtx = canvasEl.getContext('2d');
+  const offCanvas = document.createElement('canvas');
+  const offCtx = offCanvas.getContext('2d');
+
+  let cols = 10;
+  let textCols = 0;
+  let scrollOffset = 0;
+  let lastFrameTime = null;
+  let needsScroll = false;
+  let text = '';
+  const scrollSpeed = 22;
+
+  function resize() {
+    const rect = canvasEl.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    const dpr = window.devicePixelRatio || 1;
+    canvasEl.width = Math.max(1, Math.round(rect.width * dpr));
+    canvasEl.height = Math.max(1, Math.round(rect.height * dpr));
+    cols = Math.max(4, Math.round((rect.width / rect.height) * rowsCount));
+    rasterize();
   }
 
-  const data = offCtx.getImageData(0, 0, offCanvas.width, offCanvas.height).data;
+  function rasterize() {
+    const fontSize = Math.max(4, Math.round(rowsCount * fontScale));
+    offCtx.font = `bold ${fontSize}px "Courier New", monospace`;
+    const measured = offCtx.measureText(text || '').width;
+    textCols = Math.max(cols, Math.ceil(measured) + 4);
 
-  const w = canvas.width;
-  const h = canvas.height;
-  ctx.clearRect(0, 0, w, h);
+    offCanvas.width = textCols;
+    offCanvas.height = rowsCount;
 
-  const dotW = w / cols;
-  const dotH = h / ROWS;
-  const radius = Math.min(dotW, dotH) * DOT_FILL_RATIO;
+    offCtx.fillStyle = '#000';
+    offCtx.fillRect(0, 0, offCanvas.width, offCanvas.height);
 
-  for (let row = 0; row < ROWS; row++) {
-    for (let col = 0; col < cols; col++) {
-      let sampleCol = col;
-      if (needsScroll) {
-        sampleCol = Math.floor(col + scrollOffset) % (textCols + 6);
+    offCtx.font = `bold ${fontSize}px "Courier New", monospace`;
+    offCtx.fillStyle = '#fff';
+    offCtx.textBaseline = 'middle';
+    offCtx.textAlign = 'left';
+
+    const startX = textCols > cols ? 2 : Math.floor((cols - measured) / 2);
+    offCtx.fillText(text || '', startX, rowsCount / 2 + 1);
+
+    needsScroll = textCols > cols;
+    scrollOffset = 0;
+    lastFrameTime = null;
+  }
+
+  function draw(timestamp, colorHex) {
+    if (offCanvas.width === 0 || offCanvas.height === 0) return;
+    if (lastFrameTime === null) lastFrameTime = timestamp;
+    const dt = (timestamp - lastFrameTime) / 1000;
+    lastFrameTime = timestamp;
+
+    if (needsScroll) {
+      scrollOffset += scrollSpeed * dt;
+      const wrapAt = textCols + 6;
+      if (scrollOffset >= wrapAt) scrollOffset -= wrapAt;
+    }
+
+    const data = offCtx.getImageData(0, 0, offCanvas.width, offCanvas.height).data;
+
+    const w = canvasEl.width;
+    const h = canvasEl.height;
+    rCtx.clearRect(0, 0, w, h);
+
+    const dotW = w / cols;
+    const dotH = h / rowsCount;
+    const radius = Math.min(dotW, dotH) * dotFillRatio;
+
+    for (let row = 0; row < rowsCount; row++) {
+      for (let col = 0; col < cols; col++) {
+        let sampleCol = col;
+        if (needsScroll) {
+          sampleCol = Math.floor(col + scrollOffset) % (textCols + 6);
+        }
+
+        let on = false;
+        if (sampleCol < textCols) {
+          const idx = (row * offCanvas.width + sampleCol) * 4;
+          on = data[idx] > 80 && data[idx + 3] > 80;
+        }
+
+        const cx = col * dotW + dotW / 2;
+        const cy = row * dotH + dotH / 2;
+
+        rCtx.beginPath();
+        if (on) {
+          rCtx.fillStyle = colorHex;
+          rCtx.shadowColor = colorHex;
+          rCtx.shadowBlur = radius * 1.6;
+        } else {
+          rCtx.fillStyle = '#231a10';
+          rCtx.shadowBlur = 0;
+        }
+        rCtx.arc(cx, cy, radius, 0, Math.PI * 2);
+        rCtx.fill();
       }
-
-      let on = false;
-      if (sampleCol < textCols) {
-        const idx = (row * offCanvas.width + sampleCol) * 4;
-        on = data[idx] > 80 && data[idx + 3] > 80;
-      }
-
-      const cx = col * dotW + dotW / 2;
-      const cy = row * dotH + dotH / 2;
-
-      ctx.beginPath();
-      if (on) {
-        ctx.fillStyle = '#ff9100';
-        ctx.shadowColor = '#ff9100';
-        ctx.shadowBlur = radius * 1.6;
-      } else {
-        ctx.fillStyle = '#231a10';
-        ctx.shadowBlur = 0;
-      }
-      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-      ctx.fill();
     }
   }
 
-  requestAnimationFrame(drawFrame);
+  return {
+    resize,
+    setText(t) {
+      text = t;
+      rasterize();
+    },
+    draw,
+  };
+}
+
+const mainRenderer = createDotMatrixRenderer(canvas, 24, 0.72, 0.34);
+const sideRenderer = createDotMatrixRenderer(sideCanvas, 10, 0.75, 0.34);
+
+function resizeAll() {
+  if (mainRenderer) mainRenderer.resize();
+  if (sideRenderer) sideRenderer.resize();
 }
 
 function setDisplayText(text) {
   currentText = text;
-  rasterizeText(currentText);
+  if (mainRenderer) mainRenderer.setText(text);
 }
 
-window.addEventListener('resize', resizeCanvas);
-if (canvas) {
-  new ResizeObserver(resizeCanvas).observe(canvas);
+function drawFrame(timestamp) {
+  if (mainRenderer) mainRenderer.draw(timestamp, dotColorHex);
+  if (sideRenderer) sideRenderer.draw(timestamp, dotColorHex);
+  requestAnimationFrame(drawFrame);
 }
+
+window.addEventListener('resize', resizeAll);
+if (canvas) new ResizeObserver(resizeAll).observe(canvas);
+if (sideCanvas) new ResizeObserver(resizeAll).observe(sideCanvas);
 requestAnimationFrame(drawFrame);
-resizeCanvas();
+resizeAll();
+
+/* ===================== OSTATNIO WYBIERANE (lokalnie, na tym urządzeniu) ===================== */
+
+const RECENT_KEY = 'busapp_recent_lines';
+
+function loadRecents() {
+  try {
+    return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveRecents(list) {
+  localStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0, 8)));
+}
+
+function pushRecent(line) {
+  const list = loadRecents().filter(
+    (l) => !(l.number === line.number && l.destination === line.destination)
+  );
+  list.unshift({ number: line.number, destination: line.destination });
+  saveRecents(list);
+  renderRecents();
+}
+
+function renderRecents() {
+  if (!recentListEl || !recentWrapEl) return;
+  const list = loadRecents();
+  recentListEl.innerHTML = '';
+  if (!list.length) {
+    recentWrapEl.classList.add('empty');
+    return;
+  }
+  recentWrapEl.classList.remove('empty');
+  list.forEach((l) => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'recent-chip';
+    chip.innerHTML = `<span class="num">${escapeHtml(l.number)}</span>${escapeHtml(l.destination)}`;
+    chip.addEventListener('click', () => {
+      const match = currentLines.find(
+        (cl) => cl.number === l.number && cl.destination === l.destination
+      );
+      selectLine(match || l);
+    });
+    recentListEl.appendChild(chip);
+  });
+}
 
 /* ===================== PANEL STEROWANIA / SYNC ===================== */
+
+function selectLine(line) {
+  activeDisplayData = line;
+  soundIndex = 0;
+  lastPlayedKey = null;
+  autoPlayEnabled = false;
+  if (autoBtn) {
+    autoBtn.classList.remove('active');
+    autoBtn.textContent = '▶️';
+  }
+  stopAllAudio();
+  hideStopToast();
+  setDisplayText(`${line.number}  ${line.destination}`.toUpperCase());
+  if (sideRenderer) sideRenderer.setText(String(line.number));
+  pushRecent(line);
+  enterFullscreen();
+}
 
 function renderLines() {
   if (!linesListEl) return;
   linesListEl.innerHTML = '';
-  currentLines.forEach((line, index) => {
+  const sorted = [...currentLines].sort((a, b) => (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0));
+
+  sorted.forEach((line) => {
+    const index = currentLines.indexOf(line);
     const btn = document.createElement('button');
     btn.className = 'line-btn';
     btn.innerHTML = `
       <span class="num">${escapeHtml(line.number)}</span>
       <span class="dest">${escapeHtml(line.destination)}</span>
+      <button class="fav ${line.favorite ? 'active' : ''}" title="Ulubione">★</button>
       <button class="del" title="Usuń linię">✕</button>
     `;
-    
-    // Kliknięcie ustawia ekran LOKALNIE na Twoim urządzeniu
+
     btn.addEventListener('click', (e) => {
-      if (e.target.classList.contains('del')) return;
-      activeDisplayData = line;
-      soundIndex = 0;
-      setDisplayText(`${line.number}  ${line.destination}`.toUpperCase());
-      enterFullscreen();
+      if (e.target.classList.contains('del') || e.target.classList.contains('fav')) return;
+      selectLine(line);
+    });
+
+    btn.querySelector('.fav').addEventListener('click', (e) => {
+      e.stopPropagation();
+      line.favorite = !line.favorite;
+      saveLines();
     });
 
     btn.querySelector('.del').addEventListener('click', (e) => {
       e.stopPropagation();
-      currentLines.splice(index, 1);
+      if (index !== -1) currentLines.splice(index, 1);
       saveLines();
     });
+
     linesListEl.appendChild(btn);
   });
 }
@@ -288,25 +550,35 @@ function saveLines() {
   });
 }
 
-// Synchronizujemy samą listę dodanych linii ze wszystkimi użytkownikami
 socket.on('lines-updated', (lines) => {
   currentLines = lines;
   renderLines();
+  if (editorOverlay && editorOverlay.classList.contains('visible')) {
+    populateEditorLineSelect();
+  }
 });
 
 function enterFullscreen() {
   document.body.classList.add('fullscreen-mode');
-  resizeCanvas();
+  resizeAll();
 }
 
 function exitFullscreen() {
   document.body.classList.remove('fullscreen-mode');
   activeDisplayData = null;
+  autoPlayEnabled = false;
+  if (autoBtn) {
+    autoBtn.classList.remove('active');
+    autoBtn.textContent = '▶️';
+  }
+  stopAllAudio();
+  hideStopToast();
   setDisplayText('NIEAKTYWNY');
-  resizeCanvas();
+  if (sideRenderer) sideRenderer.setText('');
+  resizeAll();
 }
 
-// Zdarzenie wygaszenia tablicy
+// Zdarzenie wygaszenia tablicy (synchronizowane między urządzeniami)
 socket.on('display-updated', (display) => {
   if (!display || !display.number) {
     exitFullscreen();
@@ -335,5 +607,204 @@ if (clearBtn) {
 if (backBtn) {
   backBtn.addEventListener('click', () => {
     exitFullscreen();
+  });
+}
+
+renderRecents();
+
+/* ===================== EDYTOR DŹWIĘKÓW ===================== */
+
+function populateEditorLineSelect() {
+  if (!editorLineSelect) return;
+  const prevValue = editorLineSelect.value;
+  editorLineSelect.innerHTML = '';
+
+  currentLines.forEach((line) => {
+    const opt = document.createElement('option');
+    opt.value = `${line.number}_${line.destination}`.toUpperCase();
+    opt.textContent = `${line.number} - ${line.destination}`;
+    editorLineSelect.appendChild(opt);
+  });
+
+  const defOpt = document.createElement('option');
+  defOpt.value = 'DEFAULT';
+  defOpt.textContent = '(domyślny dźwięk - brak przypisanych)';
+  editorLineSelect.appendChild(defOpt);
+
+  if (prevValue && [...editorLineSelect.options].some((o) => o.value === prevValue)) {
+    editorLineSelect.value = prevValue;
+  }
+}
+
+function populateEditorSoundFileSelect(files) {
+  if (!editorSoundSelect) return;
+  editorSoundSelect.innerHTML = '';
+  files.forEach((f) => {
+    const opt = document.createElement('option');
+    opt.value = f;
+    opt.textContent = f;
+    editorSoundSelect.appendChild(opt);
+  });
+}
+
+function renderEditorSoundList() {
+  if (!editorLineSelect || !editorSoundListEl) return;
+  const key = editorLineSelect.value;
+  if (!key) return;
+  if (!LINE_SOUND_MAP[key]) LINE_SOUND_MAP[key] = [];
+  const list = LINE_SOUND_MAP[key];
+
+  editorSoundListEl.innerHTML = '';
+  list.forEach((soundPath, idx) => {
+    const fileName = soundPath.split('/').pop();
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <span class="file-name">${idx + 1}. ${escapeHtml(fileName)}</span>
+      <button class="move-up" title="Wyżej">▲</button>
+      <button class="move-down" title="Niżej">▼</button>
+      <button class="remove" title="Usuń">✕</button>
+    `;
+    li.querySelector('.move-up').addEventListener('click', () => {
+      if (idx === 0) return;
+      [list[idx - 1], list[idx]] = [list[idx], list[idx - 1]];
+      renderEditorSoundList();
+    });
+    li.querySelector('.move-down').addEventListener('click', () => {
+      if (idx === list.length - 1) return;
+      [list[idx + 1], list[idx]] = [list[idx], list[idx + 1]];
+      renderEditorSoundList();
+    });
+    li.querySelector('.remove').addEventListener('click', () => {
+      list.splice(idx, 1);
+      renderEditorSoundList();
+    });
+    editorSoundListEl.appendChild(li);
+  });
+}
+
+if (editorLineSelect) {
+  editorLineSelect.addEventListener('change', () => {
+    if (editorStatus) editorStatus.textContent = '';
+    renderEditorSoundList();
+  });
+}
+
+if (editorAddSoundBtn) {
+  editorAddSoundBtn.addEventListener('click', () => {
+    const key = editorLineSelect.value;
+    const chosen = editorSoundSelect.value;
+    if (!key || !chosen) return;
+    if (!LINE_SOUND_MAP[key]) LINE_SOUND_MAP[key] = [];
+    LINE_SOUND_MAP[key].push('sounds/' + chosen);
+    renderEditorSoundList();
+    if (editorStatus) editorStatus.textContent = '';
+  });
+}
+
+if (editorSaveBtn) {
+  editorSaveBtn.addEventListener('click', () => {
+    fetch('/api/soundmap', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(LINE_SOUND_MAP),
+    })
+      .then((r) => r.json())
+      .then(() => {
+        if (editorStatus) {
+          editorStatus.textContent = 'Zapisano ✓';
+          setTimeout(() => {
+            editorStatus.textContent = '';
+          }, 2500);
+        }
+      })
+      .catch(() => {
+        if (editorStatus) editorStatus.textContent = 'Błąd zapisu';
+      });
+  });
+}
+
+if (editorBtn) {
+  editorBtn.addEventListener('click', () => {
+    editorOverlay.classList.add('visible');
+    populateEditorLineSelect();
+    fetch('/api/sounds-files')
+      .then((r) => r.json())
+      .then((files) => {
+        populateEditorSoundFileSelect(files);
+      })
+      .catch(() => {});
+    if (editorLineSelect.options.length) {
+      renderEditorSoundList();
+    }
+  });
+}
+
+if (editorCloseBtn) {
+  editorCloseBtn.addEventListener('click', () => {
+    editorOverlay.classList.remove('visible');
+  });
+}
+
+/* ===================== EKSPORT / IMPORT KONFIGURACJI ===================== */
+
+if (exportBtn) {
+  exportBtn.addEventListener('click', () => {
+    fetch('/api/config')
+      .then((r) => r.json())
+      .then((config) => {
+        const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const stamp = new Date().toISOString().slice(0, 10);
+        a.href = url;
+        a.download = `tablica-config-${stamp}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      })
+      .catch(() => alert('Nie udało się wyeksportować konfiguracji.'));
+  });
+}
+
+if (importBtn && importFileInput) {
+  importBtn.addEventListener('click', () => {
+    importFileInput.click();
+  });
+
+  importFileInput.addEventListener('change', () => {
+    const file = importFileInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const config = JSON.parse(reader.result);
+        if (!Array.isArray(config.lines) || typeof config.soundMap !== 'object') {
+          throw new Error('zły format');
+        }
+        fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(config),
+        })
+          .then((r) => r.json())
+          .then(() => {
+            alert('Konfiguracja zaimportowana.');
+          })
+          .catch(() => alert('Błąd zapisu zaimportowanej konfiguracji.'));
+      } catch (e) {
+        alert('Nieprawidłowy plik konfiguracji.');
+      }
+    };
+    reader.readAsText(file);
+    importFileInput.value = '';
+  });
+}
+
+/* ===================== PWA / OFFLINE ===================== */
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/service-worker.js').catch(() => {});
   });
 }
