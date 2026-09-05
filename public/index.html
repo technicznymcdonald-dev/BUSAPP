@@ -35,6 +35,7 @@
         <button class="color-swatch" data-color="green" title="Zielony"></button>
       </div>
       <button id="editor-btn" title="Edytuj dźwięki">🎚️</button>
+      <button id="device-name-btn" title="Zmień nazwę tego urządzenia">📱</button>
       <button id="export-btn" title="Eksportuj konfigurację">⬇️</button>
       <button id="import-btn" title="Importuj konfigurację">⬆️</button>
       <input type="file" id="import-file-input" accept="application/json" hidden />
@@ -59,6 +60,16 @@
     <input type="text" id="new-destination" placeholder="Kierunek, np. Podbórz" required />
     <button type="submit">Dodaj</button>
   </form>
+</div>
+
+<div id="device-picker-overlay">
+  <div id="device-picker">
+    <div id="device-picker-header">
+      <h2>Wyślij linię na urządzenie</h2>
+      <button id="device-picker-close-btn">✕</button>
+    </div>
+    <div id="device-picker-list"></div>
+  </div>
 </div>
 
 <div id="sound-editor-overlay">

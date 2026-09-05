@@ -85,24 +85,6 @@ let LINE_SOUND_MAP = {
     "sounds/92_Kolataja_K.mp3",
     "sounds/92_Kollataja.mp3"
   ],
-     "51_GŁEBOKIE": [
-    "sounds/51_Głębokie_P.mp3",
-    "sounds/92_Kollataja.mp3",
-    "sounds/92_Niemcewicza.mp3",
-    "sounds/92_dworzec_niebuszewo.mp3",
-    "sounds/92_Krasinskiego.mp3",
-    "sounds/92_chopina.mp3",
-    "sounds/92_wiosny.mp3",
-    "sounds/92_Podlesna.mp3",
-    "sounds/92_ogrody.mp3",
-    "sounds/92_junacka.mp3",
-    "sounds/92_chozowksa.mp3",
-    "sounds/92_osow.mp3",
-    "sounds/51_Podlesna_nz.mp3",
-    "sounds/51_Miod_nz.mp3",
-    "sounds/51_Głebokie_K.mp3",
-    "sounds/51_Głębokie.mp3" 
-  ],
   "DEFAULT": [
     "sounds/braklini.mp3"
   ]
@@ -492,7 +474,7 @@ function renderRecents() {
       const match = currentLines.find(
         (cl) => cl.number === l.number && cl.destination === l.destination
       );
-      selectLine(match || l);
+      openDevicePicker(match || l);
     });
     recentListEl.appendChild(chip);
   });
@@ -535,7 +517,7 @@ function renderLines() {
 
     btn.addEventListener('click', (e) => {
       if (e.target.classList.contains('del') || e.target.classList.contains('fav')) return;
-      selectLine(line);
+      openDevicePicker(line);
     });
 
     btn.querySelector('.fav').addEventListener('click', (e) => {
@@ -826,3 +808,142 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/service-worker.js').catch(() => {});
   });
 }
+
+/* ===================== NAZWA URZĄDZENIA / ZDALNE WYSYŁANIE LINII ===================== */
+
+const DEVICE_NAME_KEY = 'busapp_device_name';
+const deviceNameBtn = document.getElementById('device-name-btn');
+const devicePickerOverlay = document.getElementById('device-picker-overlay');
+const devicePickerCloseBtn = document.getElementById('device-picker-close-btn');
+const devicePickerListEl = document.getElementById('device-picker-list');
+
+function guessDefaultDeviceName() {
+  const ua = navigator.userAgent || '';
+  if (/iPhone/i.test(ua)) return 'iPhone';
+  if (/iPad/i.test(ua)) return 'iPad';
+  if (/Android/i.test(ua)) return 'Telefon Android';
+  if (/Macintosh/i.test(ua)) return 'Mac';
+  if (/Windows/i.test(ua)) return 'Komputer';
+  return 'Urządzenie';
+}
+
+let deviceName = localStorage.getItem(DEVICE_NAME_KEY);
+if (!deviceName) {
+  const suggestion = guessDefaultDeviceName();
+  deviceName =
+    (window.prompt(
+      'Jak nazwać to urządzenie? (będzie widoczne dla innych, np. "iPhone 13 Pro Max")',
+      suggestion
+    ) || suggestion).trim() || suggestion;
+  localStorage.setItem(DEVICE_NAME_KEY, deviceName);
+}
+
+function registerDeviceName() {
+  socket.emit('register-device', deviceName);
+}
+
+socket.on('connect', registerDeviceName);
+// Gdyby socket był już połączony w momencie podpięcia listenera
+if (socket.connected) registerDeviceName();
+
+if (deviceNameBtn) {
+  deviceNameBtn.addEventListener('click', () => {
+    const next = window.prompt('Nowa nazwa tego urządzenia:', deviceName);
+    if (next && next.trim()) {
+      deviceName = next.trim();
+      localStorage.setItem(DEVICE_NAME_KEY, deviceName);
+      registerDeviceName();
+    }
+  });
+}
+
+let connectedDevices = []; // [{ id, name }]
+let pendingLine = null;
+
+socket.on('devices-updated', (list) => {
+  connectedDevices = Array.isArray(list) ? list : [];
+  if (devicePickerOverlay && devicePickerOverlay.classList.contains('visible')) {
+    renderDevicePickerList();
+  }
+});
+
+function deviceIconFor(name) {
+  const n = (name || '').toLowerCase();
+  if (n.includes('iphone') || n.includes('android') || n.includes('telefon')) return '📱';
+  if (n.includes('ipad') || n.includes('tablet')) return '📱';
+  if (n.includes('mac') || n.includes('komp') || n.includes('windows') || n.includes('pc')) return '💻';
+  return '🖥️';
+}
+
+function renderDevicePickerList() {
+  if (!devicePickerListEl) return;
+  devicePickerListEl.innerHTML = '';
+
+  const allBtn = document.createElement('button');
+  allBtn.type = 'button';
+  allBtn.className = 'device-option all-devices';
+  allBtn.innerHTML = `<span class="icon">📡</span><span>Wszystkie urządzenia</span>`;
+  allBtn.addEventListener('click', () => sendPendingLineToDevice('all'));
+  devicePickerListEl.appendChild(allBtn);
+
+  if (!connectedDevices.length) {
+    const empty = document.createElement('div');
+    empty.className = 'device-picker-empty';
+    empty.textContent = 'Brak innych wykrytych urządzeń - upewnij się, że są w tej samej sieci i mają otwartą stronę.';
+    devicePickerListEl.appendChild(empty);
+  }
+
+  connectedDevices.forEach((d) => {
+    const isSelf = d.id === socket.id;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'device-option' + (isSelf ? ' self' : '');
+    btn.innerHTML = `<span class="icon">${deviceIconFor(d.name)}</span><span>${escapeHtml(d.name)}${isSelf ? ' (to urządzenie)' : ''}</span>`;
+    btn.addEventListener('click', () => sendPendingLineToDevice(d.id));
+    devicePickerListEl.appendChild(btn);
+  });
+}
+
+function openDevicePicker(line) {
+  pendingLine = line;
+  if (!devicePickerOverlay) {
+    // Zapasowo - gdyby modal się nie załadował, działaj jak dotychczas (lokalnie)
+    selectLine(line);
+    return;
+  }
+  renderDevicePickerList();
+  devicePickerOverlay.classList.add('visible');
+}
+
+function closeDevicePicker() {
+  if (devicePickerOverlay) devicePickerOverlay.classList.remove('visible');
+  pendingLine = null;
+}
+
+function sendPendingLineToDevice(targetId) {
+  if (!pendingLine) return;
+  if (targetId === socket.id) {
+    // Wysyłka do samego siebie - po co robić rundkę przez serwer
+    selectLine(pendingLine);
+  } else {
+    socket.emit('send-line-to-device', { targetId, line: pendingLine });
+  }
+  closeDevicePicker();
+}
+
+if (devicePickerCloseBtn) {
+  devicePickerCloseBtn.addEventListener('click', closeDevicePicker);
+}
+
+if (devicePickerOverlay) {
+  devicePickerOverlay.addEventListener('click', (e) => {
+    if (e.target === devicePickerOverlay) closeDevicePicker();
+  });
+}
+
+// To urządzenie zostało wybrane jako cel przez inne urządzenie
+socket.on('remote-select-line', (line) => {
+  if (line && typeof line.number !== 'undefined') {
+    selectLine(line);
+  }
+});
