@@ -85,6 +85,24 @@ let LINE_SOUND_MAP = {
     "sounds/92_Kolataja_K.mp3",
     "sounds/92_Kollataja.mp3"
   ],
+     "51_GŁEBOKIE": [
+    "sounds/51_Głębokie_P.mp3",
+    "sounds/92_Kollataja.mp3",
+    "sounds/92_Niemcewicza.mp3",
+    "sounds/92_dworzec_niebuszewo.mp3",
+    "sounds/92_Krasinskiego.mp3",
+    "sounds/92_chopina.mp3",
+    "sounds/92_wiosny.mp3",
+    "sounds/92_Podlesna.mp3",
+    "sounds/92_ogrody.mp3",
+    "sounds/92_junacka.mp3",
+    "sounds/92_chozowksa.mp3",
+    "sounds/92_osow.mp3",
+    "sounds/51_Podlesna_nz.mp3",
+    "sounds/51_Miod_nz.mp3",
+    "sounds/51_Głebokie_K.mp3",
+    "sounds/51_Głębokie.mp3" 
+  ],
   "DEFAULT": [
     "sounds/braklini.mp3"
   ]
